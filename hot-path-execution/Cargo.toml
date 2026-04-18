@@ -23,3 +23,6 @@ dashmap = "6"
 tokio-util = { version = "0.7.18", features = ["rt"] }
 memmap2 = "0.9.10"
 flatbuffers = "25.12.19"
+axum = "0.7"
+prometheus = "0.13"
+lazy_static = "1.5"

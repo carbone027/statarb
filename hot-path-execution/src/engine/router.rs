@@ -5,6 +5,7 @@ use tracing::{info, warn};
 
 use crate::engine::executor::OrderExecutor;
 use crate::state::orderbook::LocalMarketState;
+use crate::telemetry::metrics::EXECUTION_LATENCY;
 
 #[derive(Clone, Debug)]
 pub struct RiskMatrix {
@@ -63,8 +64,8 @@ pub async fn run_router(
                                 continue;
                             }
 
-                            let latency = instant_start.elapsed().as_millis();
                             // Delegate to Executor (Trait Abstraction)
+                            let latency_pre = instant_start.elapsed().as_millis();
                             executor.execute_arbitrage_trade(
                                 &risk.target_symbol,
                                 btc.ask_price,
@@ -72,8 +73,12 @@ pub async fn run_router(
                                 &risk.hedge_symbol,
                                 eth.bid_price,
                                 hedge_qty,
-                                latency,
+                                latency_pre,
                             ).await;
+
+                            // Registrar latência completa (decision + execution) no histograma
+                            let latency_ms = instant_start.elapsed().as_secs_f64() * 1000.0;
+                            EXECUTION_LATENCY.observe(latency_ms);
                         }
                     }
                 }

@@ -6,6 +6,7 @@ mod types;
 mod config;
 mod exchange;
 pub mod portfolio;
+mod telemetry;
 
 use clap::Parser;
 use crate::config::settings::Config;
@@ -130,6 +131,12 @@ async fn main() -> anyhow::Result<()> {
         run_router(state_router, router_risks, executor, token_router).await;
     });
 
+    // Telemetry HTTP Server (GET /metrics — porta 8080)
+    let token_telemetry = shutdown_token.clone();
+    let telemetry_task = tokio::spawn(async move {
+        telemetry::run_telemetry_server("0.0.0.0:8080", token_telemetry).await;
+    });
+
     // O Sistema permanece vivo rodando o background async até dispararmos o SIGINT.
     match signal::ctrl_c().await {
         Ok(()) => {
@@ -143,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     info!("Waiting for execution tasks to clean up IO & Network safely...");
-    let _ = tokio::join!(network_task, shm_task, router_task);
+    let _ = tokio::join!(network_task, shm_task, router_task, telemetry_task);
 
     info!("All active handles exited gracefully. Goodbye!");
 

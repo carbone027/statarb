@@ -1,6 +1,7 @@
 use std::sync::RwLock;
 use dashmap::DashMap;
 use super::position::Position;
+use crate::telemetry::metrics::{PORTFOLIO_BALANCE, ACTIVE_POSITIONS};
 
 #[derive(Debug)]
 pub struct PortfolioManager {
@@ -26,6 +27,7 @@ impl PortfolioManager {
         if *available >= amount {
             *available -= amount;
             *locked += amount;
+            PORTFOLIO_BALANCE.set(*available);
             Ok(())
         } else {
             Err("Saldo livre insuficiente para alocação".to_string())
@@ -40,6 +42,7 @@ impl PortfolioManager {
         if *locked >= amount {
             *locked -= amount;
             *available += amount;
+            PORTFOLIO_BALANCE.set(*available);
             Ok(())
         } else {
             Err("Saldo bloqueado insuficiente para liberação".to_string())
@@ -60,6 +63,11 @@ impl PortfolioManager {
                     pos.average_entry_price = 0.0;
                 }
             })
-            .or_insert_with(|| Position::new(symbol, qty, price));
+            .or_insert_with(|| Position::new(symbol.clone(), qty, price));
+
+        // Atualizar gauge Prometheus com a quantidade final da posição
+        if let Some(pos) = self.positions.get(&symbol) {
+            ACTIVE_POSITIONS.with_label_values(&[&symbol]).set(pos.quantity);
+        }
     }
 }

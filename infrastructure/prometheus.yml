@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s      # Coleta a cada 5 segundos
+  evaluation_interval: 5s  # Avalia regras a cada 5 segundos
+
+scrape_configs:
+  - job_name: 'hot-path-execution'
+    static_configs:
+      # host.docker.internal aponta para o host onde o Rust roda (porta 8080)
+      - targets: ['host.docker.internal:8080']
+    metrics_path: '/metrics'

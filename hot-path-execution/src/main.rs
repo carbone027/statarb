@@ -9,8 +9,8 @@ pub mod portfolio;
 
 use clap::Parser;
 use crate::config::settings::Config;
-use crate::engine::executor::{OrderExecutor, PaperExecutor};
-use crate::network::binance::BinanceExecutor;
+use crate::engine::executor::{OrderExecutor, PaperExecutor, LiveExecutor};
+use crate::exchange::binance_client::BinanceClient;
 
 use std::sync::Arc;
 use tokio::signal;
@@ -122,7 +122,8 @@ async fn main() -> anyhow::Result<()> {
     let executor: Arc<dyn OrderExecutor> = if args.paper_trading {
         Arc::new(PaperExecutor { portfolio: Arc::clone(&portfolio) })
     } else {
-        Arc::new(BinanceExecutor::new(config))
+        let client = BinanceClient::new(config.binance_api_key, config.binance_secret);
+        Arc::new(LiveExecutor::new(client))
     };
 
     let router_task = tokio::spawn(async move {

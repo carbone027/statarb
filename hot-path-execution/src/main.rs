@@ -1,11 +1,15 @@
+mod engine;
 mod network;
 mod state;
 mod types;
 
 use std::sync::Arc;
+use tokio::signal;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
+use crate::engine::router::{run_router, RiskMatrix};
 use crate::network::websocket::run_market_data_stream;
 use crate::state::orderbook::LocalMarketState;
 
@@ -23,36 +27,52 @@ async fn main() -> anyhow::Result<()> {
     // In-memory concurrent state initialization
     let market_state = Arc::new(LocalMarketState::new());
 
+    // Token for Graceful Shutdown coordination
+    let shutdown_token = CancellationToken::new();
+
     // Target pairs
     let symbols = vec!["BTCUSDT".to_string(), "ETHUSDT".to_string()];
 
-    // Pass reactive control to tokio::spawn
-    let state_clone = Arc::clone(&market_state);
-    tokio::spawn(async move {
-        run_market_data_stream(state_clone, symbols).await;
+    // Pass reactive network reader to tokio::spawn
+    let state_network = Arc::clone(&market_state);
+    let token_network = shutdown_token.clone();
+    let network_task = tokio::spawn(async move {
+        run_market_data_stream(state_network, symbols, token_network).await;
     });
 
-    // Purely Reactive Router on the main thread
-    // Driven entirely by price notifications without spin-locks or sleep polls
-    loop {
-        // Await the push notification from the WebSocket reader
-        market_state.price_notifier.notified().await;
+    // Dummy Risk Matrix setup
+    let risk_matrix = RiskMatrix {
+        target_symbol: "BTCUSDT".to_string(),
+        hedge_symbol: "ETHUSDT".to_string(),
+        hedge_ratio: 15.5, // Emulação provisória de balanceamento matemático.
+        threshold: 2.0,    // Baseado na regressão linear teórica (simulada).
+    };
 
-        // Router must check if state is valid (Circuit Breaker) concurrently
-        if market_state.valid() {
-            // Engine is free to read the book and take decisions using fine-grained locks
-            let btc_ref = market_state.orderbook.get("BTCUSDT");
-            let eth_ref = market_state.orderbook.get("ETHUSDT");
+    // Pass mathematical engine to tokio::spawn
+    let state_router = Arc::clone(&market_state);
+    let token_router = shutdown_token.clone();
+    let router_task = tokio::spawn(async move {
+        run_router(state_router, risk_matrix, token_router).await;
+    });
 
-            if let (Some(btc), Some(eth)) = (btc_ref, eth_ref) {
-                // Log the simulated spread
-                info!(
-                    "Arbitrage React! | BTC Bid: {:.2} / ETH Ask: {:.2} | Valid Spread State",
-                    btc.bid_price, eth.ask_price
-                );
-            }
-        } else {
-            tracing::warn!("Market state invalid via Circuit Breaker. Re-arming...");
+    // O Sistema permanece vivo rodando o background async até dispararmos o SIGINT.
+    match signal::ctrl_c().await {
+        Ok(()) => {
+            info!("SIGINT (Ctrl+C) received. Beginning Graceful Shutdown...");
+            // Desencadeia o fechamento das sockets e termina as corotinas
+            shutdown_token.cancel();
+        }
+        Err(err) => {
+            tracing::error!("Unable to listen for shutdown signal: {}", err);
         }
     }
+
+    info!("Waiting for execution tasks to clean up IO & Network safely...");
+    let _ = tokio::join!(network_task, router_task);
+
+    // As the blocks finish and program terminates here, the tracing system is intrinsically flushed.
+    // Opcionalmente, pode ser chamado funções de drop explicito do tracer se houver um arquivo.
+    info!("All active handles exited gracefully. Goodbye!");
+
+    Ok(())
 }

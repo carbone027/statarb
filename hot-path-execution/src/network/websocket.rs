@@ -2,19 +2,16 @@ use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use tracing::{debug, error, info, warn};
 
-use crate::types::models::{BookTicker, LocalMarketState};
+use crate::state::orderbook::LocalMarketState;
+use crate::types::models::BookTicker;
 
 const BINANCE_WS_URL: &str = "wss://stream.binance.com:9443/ws";
 
-pub async fn run_market_data_stream(
-    state: Arc<RwLock<LocalMarketState>>,
-    symbols: Vec<String>,
-) {
+pub async fn run_market_data_stream(state: Arc<LocalMarketState>, symbols: Vec<String>) {
     let mut backoff = Duration::from_secs(1);
     let max_backoff = Duration::from_secs(32);
 
@@ -29,11 +26,8 @@ pub async fn run_market_data_stream(
             Err(e) => {
                 error!("WebSocket error: {:?}. Triggering Circuit Breaker...", e);
 
-                // Circuit Breaker: invalidate state and clear orderbook
-                {
-                    let mut lock = state.write().await;
-                    lock.invalidate();
-                }
+                // Circuit Breaker: invalidate state and clear orderbook (Lock-Free)
+                state.invalidate();
 
                 info!("Waiting {:?} before reconnecting...", backoff);
                 sleep(backoff).await;
@@ -45,10 +39,7 @@ pub async fn run_market_data_stream(
     }
 }
 
-async fn connect_and_listen(
-    state: &Arc<RwLock<LocalMarketState>>,
-    symbols: &[String],
-) -> Result<()> {
+async fn connect_and_listen(state: &Arc<LocalMarketState>, symbols: &[String]) -> Result<()> {
     let (ws_stream, _) = connect_async(BINANCE_WS_URL)
         .await
         .context("Failed to connect to Binance WebSocket")?;
@@ -75,12 +66,9 @@ async fn connect_and_listen(
 
     info!("Subscribed to streams: {:?}", streams);
 
-    // Turn off circuit breaker (i.e. make state valid again) since connection is restablished
-    {
-        let mut lock = state.write().await;
-        lock.is_valid = true;
-        info!("Circuit Breaker check passed. Engine ready to ingest prices.");
-    }
+    // Turn off circuit breaker (i.e. make state valid again) lock-free
+    state.set_valid(true);
+    info!("Circuit Breaker check passed. Engine ready to ingest prices.");
 
     while let Some(msg) = read.next().await {
         let msg = msg.context("Error reading message from stream")?;
@@ -94,10 +82,11 @@ async fn connect_and_listen(
 
                 match serde_json::from_str::<BookTicker>(&text) {
                     Ok(ticker) => {
-                        let mut lock = state.write().await;
                         // Extra check to only update orderbook if valid
-                        if lock.is_valid {
-                            lock.orderbook.insert(ticker.symbol.clone(), ticker);
+                        if state.valid() {
+                            state.orderbook.insert(ticker.symbol.clone(), ticker);
+                            // Notifier avoids coalescer sleep loops in the router thread
+                            state.price_notifier.notify_waiters();
                         }
                     }
                     Err(e) => {

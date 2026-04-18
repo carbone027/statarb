@@ -1,5 +1,4 @@
 use serde::{Deserialize, Deserializer};
-use std::collections::HashMap;
 
 // Type Aliases for centralized and painless refactoring in the future.
 pub type Price = f64;
@@ -25,25 +24,4 @@ pub struct BookTicker {
     pub ask_price: Price,
     #[serde(rename = "A", deserialize_with = "parse_f64_from_str")]
     pub ask_qty: Vol,
-}
-
-#[derive(Debug)]
-pub struct LocalMarketState {
-    pub is_valid: bool, // Circuit Breaker flag
-    pub orderbook: HashMap<String, BookTicker>,
-}
-
-impl LocalMarketState {
-    pub fn new() -> Self {
-        Self {
-            is_valid: false,
-            orderbook: HashMap::new(),
-        }
-    }
-
-    /// Triggers Circuit Breaker: invalidates the book and clears out old prices.
-    pub fn invalidate(&mut self) {
-        self.is_valid = false;
-        self.orderbook.clear();
-    }
 }

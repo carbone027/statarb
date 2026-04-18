@@ -14,6 +14,7 @@ dependencies = [
     "scikit-learn>=1.4.0",
     "statsmodels>=0.14.0",
     "scipy>=1.11.0",
+    "pykalman>=0.9.5",
 ]
 
 [build-system]

@@ -94,6 +94,7 @@ dependencies = [
     { name = "httpx" },
     { name = "polars" },
     { name = "pyarrow" },
+    { name = "pykalman" },
     { name = "questdb" },
     { name = "scikit-learn" },
     { name = "scipy" },
@@ -107,6 +108,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pyarrow", specifier = ">=15.0.0" },
+    { name = "pykalman", specifier = ">=0.9.5" },
     { name = "questdb", specifier = ">=3.1.1" },
     { name = "scikit-learn", specifier = ">=1.4.0" },
     { name = "scipy", specifier = ">=1.11.0" },
@@ -383,6 +385,21 @@ wheels = [
 ]
 
 [[package]]
+name = "pykalman"
+version = "0.11.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "scikit-base" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/5e/2c4a3dc86f5d9bc80ef48a79197b57c6b03aefa021aa685da1a8b1478492/pykalman-0.11.2.tar.gz", hash = "sha256:70c22bb074376f7aa1304c4c2f4c61feb22bafd4ab992d340da9340b5a028674", size = 244565, upload-time = "2026-01-31T22:11:03.61Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/4d/bd6608cb7b1d2832e4270bb36c7394efa6ea1c8243a3b9ee53726a6cffe0/pykalman-0.11.2-py2.py3-none-any.whl", hash = "sha256:00dcc0c88b93a8ab6100295501e7f440350b872d558b41d0deff2fcaf827a553", size = 252132, upload-time = "2026-01-31T22:11:01.317Z" },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -429,6 +446,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/75/c7/d19fdd4edcc91b1f6e66f9dc7c8dfd66967b7b800ca59180c75ef8b2b546/questdb-4.1.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:ae54862ac73bcfb7b1d17771693872e04f2659b04180bdf24259f46012b0bb66", size = 3252602, upload-time = "2025-11-28T19:50:26.922Z" },
     { url = "https://files.pythonhosted.org/packages/08/2a/b80fc90836c975f26443fcf9e0ab672abfe3f4283c3421456242b46012b4/questdb-4.1.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:b7f9f437f594b88c7e4c6cf9c683c809ecd5f2020446d82be47e4f12e0295cfd", size = 5921142, upload-time = "2025-11-28T19:50:28.369Z" },
     { url = "https://files.pythonhosted.org/packages/37/b1/6c22a6c6425c3e7a0d578526db2b8ea2e534f9b4cc3aa6e2f1c5878f6081/questdb-4.1.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:bee0c5df4513e6c30f9d24fd3feedc08f0528b3daa990bed4eb31deebceffa85", size = 5965328, upload-time = "2025-11-28T19:50:30.107Z" },
+]
+
+[[package]]
+name = "scikit-base"
+version = "0.13.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/47/7954094adee334012d7182c2f78bb5f134f6ec93e28a0fdc6856de5ed4f6/scikit_base-0.13.2.tar.gz", hash = "sha256:c78245064754781b17062ab183a03bc12b36163b9e5f2cfcb6f29f749be4b266", size = 135452, upload-time = "2026-04-13T21:14:50.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/2e/1488716735c31bf82c6898759d12771b3e0ff5daeb0f01b73b82a4462ad9/scikit_base-0.13.2-py3-none-any.whl", hash = "sha256:0a67063c0323b9521ede91cfcc87ce097126de5f9d5367abed6e76ff97a0eda5", size = 160792, upload-time = "2026-04-13T21:14:48.243Z" },
 ]
 
 [[package]]

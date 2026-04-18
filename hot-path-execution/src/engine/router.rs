@@ -6,6 +6,7 @@ use tracing::{info, warn};
 use crate::engine::executor::execute_arbitrage_trade;
 use crate::state::orderbook::LocalMarketState;
 
+#[derive(Clone, Debug)]
 pub struct RiskMatrix {
     pub target_symbol: String,
     pub hedge_symbol: String,
@@ -15,47 +16,48 @@ pub struct RiskMatrix {
 
 pub async fn run_router(
     state: Arc<LocalMarketState>,
-    risk: RiskMatrix,
+    risk_states: Arc<tokio::sync::RwLock<Vec<RiskMatrix>>>,
     shutdown_token: CancellationToken,
 ) {
-    info!(
-        "Engine Router started for {} / {}",
-        risk.target_symbol, risk.hedge_symbol
-    );
+    info!("Engine Router started. Listening for runtime signal updates.");
 
-    let base_quantity = 1.0; // Posição base virtual de 1 inteiro (Ex: 1 BTC)
+    let base_quantity = 1.0; // Virtual base position
 
     loop {
         tokio::select! {
             _ = state.price_notifier.notified() => {
                 let instant_start = Instant::now();
 
-                // Extração dos Books garantindo segurança do Circuito
+                // Circuit Breaker
                 if !state.valid() {
                     warn!("Router blocked by invalid Circuit Breaker. Waiting...");
                     continue;
                 }
 
-                let btc_ref = state.orderbook.get(&risk.target_symbol);
-                let eth_ref = state.orderbook.get(&risk.hedge_symbol);
+                // Copy risk states lock-free to evaluate immediately
+                let active_risks = risk_states.read().await.clone();
 
-                if let (Some(btc), Some(eth)) = (btc_ref, eth_ref) {
-                    // Cálculo Lógico Paramétrico
-                    // Valor Teórico: bid do alvo vs (ask do Hedge * ratio)
-                    let simulated_spread = btc.bid_price - (eth.ask_price * risk.hedge_ratio);
+                for risk in active_risks {
+                    let btc_ref = state.orderbook.get(&risk.target_symbol);
+                    let eth_ref = state.orderbook.get(&risk.hedge_symbol);
 
-                    if simulated_spread > risk.threshold {
-                        let latency = instant_start.elapsed().as_millis();
-                        // Delega ao executor.rs e repassa propriedades
-                        execute_arbitrage_trade(
-                            &risk.target_symbol,
-                            btc.ask_price, // Simula a compra que consumirá ask
-                            base_quantity,
-                            &risk.hedge_symbol,
-                            eth.bid_price, // Simula a venda que alvejará bid
-                            base_quantity * risk.hedge_ratio,
-                            latency
-                        );
+                    if let (Some(btc), Some(eth)) = (btc_ref, eth_ref) {
+                        // Parametric Logical Spread
+                        let simulated_spread = btc.bid_price - (eth.ask_price * risk.hedge_ratio);
+
+                        if simulated_spread > risk.threshold {
+                            let latency = instant_start.elapsed().as_millis();
+                            // Delegate to Executor
+                            execute_arbitrage_trade(
+                                &risk.target_symbol,
+                                btc.ask_price,
+                                base_quantity,
+                                &risk.hedge_symbol,
+                                eth.bid_price,
+                                base_quantity * risk.hedge_ratio,
+                                latency
+                            );
+                        }
                     }
                 }
             }

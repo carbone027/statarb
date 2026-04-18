@@ -1,3 +1,4 @@
+mod ipc;
 mod engine;
 mod network;
 mod state;
@@ -5,6 +6,7 @@ mod types;
 
 use std::sync::Arc;
 use tokio::signal;
+use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -12,6 +14,7 @@ use tracing_subscriber::FmtSubscriber;
 use crate::engine::router::{run_router, RiskMatrix};
 use crate::network::websocket::run_market_data_stream;
 use crate::state::orderbook::LocalMarketState;
+use crate::state::shm_reader::SharedMemoryReader;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,10 +25,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber)
         .expect("Failed to set default subscriber for tracing");
 
-    info!("Starting StatArb Hot-Path Engine...");
+    info!("Starting StatArb Hot-Path Engine with IPC Memory Reading...");
 
     // In-memory concurrent state initialization
     let market_state = Arc::new(LocalMarketState::new());
+    
+    // Dynamic Risk Matrix via RwLock
+    let dynamic_risks = Arc::new(tokio::sync::RwLock::new(Vec::<RiskMatrix>::new()));
 
     // Token for Graceful Shutdown coordination
     let shutdown_token = CancellationToken::new();
@@ -40,19 +46,46 @@ async fn main() -> anyhow::Result<()> {
         run_market_data_stream(state_network, symbols, token_network).await;
     });
 
-    // Dummy Risk Matrix setup
-    let risk_matrix = RiskMatrix {
-        target_symbol: "BTCUSDT".to_string(),
-        hedge_symbol: "ETHUSDT".to_string(),
-        hedge_ratio: 15.5, // Emulação provisória de balanceamento matemático.
-        threshold: 2.0,    // Baseado na regressão linear teórica (simulada).
-    };
+    // SHM Background Reader Task
+    let shm_risks = Arc::clone(&dynamic_risks);
+    let token_shm = shutdown_token.clone();
+    let shm_task = tokio::spawn(async move {
+        // Wait briefly to allow Python to scaffold the SHM buffer initially if started at exact same time
+        sleep(Duration::from_millis(500)).await;
+
+        let reader = match SharedMemoryReader::new("statarb_signals") {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!("Failed to mount SHM: {:?}", e);
+                return;
+            }
+        };
+
+        loop {
+            tokio::select! {
+                _ = sleep(Duration::from_millis(50)) => {
+                    // Poll RAM lock-free
+                    if let Some(mut updated_signals) = reader.read_signals() {
+                        if !updated_signals.is_empty() {
+                            let mut write_guard = shm_risks.write().await;
+                            *write_guard = std::mem::take(&mut updated_signals);
+                        }
+                    }
+                }
+                _ = token_shm.cancelled() => {
+                    info!("SHM memory polling terminated gracefully.");
+                    break;
+                }
+            }
+        }
+    });
 
     // Pass mathematical engine to tokio::spawn
     let state_router = Arc::clone(&market_state);
     let token_router = shutdown_token.clone();
+    let router_risks = Arc::clone(&dynamic_risks);
     let router_task = tokio::spawn(async move {
-        run_router(state_router, risk_matrix, token_router).await;
+        run_router(state_router, router_risks, token_router).await;
     });
 
     // O Sistema permanece vivo rodando o background async até dispararmos o SIGINT.
@@ -68,10 +101,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     info!("Waiting for execution tasks to clean up IO & Network safely...");
-    let _ = tokio::join!(network_task, router_task);
+    let _ = tokio::join!(network_task, shm_task, router_task);
 
-    // As the blocks finish and program terminates here, the tracing system is intrinsically flushed.
-    // Opcionalmente, pode ser chamado funções de drop explicito do tracer se houver um arquivo.
     info!("All active handles exited gracefully. Goodbye!");
 
     Ok(())

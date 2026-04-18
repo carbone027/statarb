@@ -4,6 +4,7 @@ mod network;
 mod state;
 mod types;
 mod config;
+mod exchange;
 pub mod portfolio;
 
 use clap::Parser;

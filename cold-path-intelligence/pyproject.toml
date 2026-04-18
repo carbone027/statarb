@@ -15,6 +15,7 @@ dependencies = [
     "statsmodels>=0.14.0",
     "scipy>=1.11.0",
     "pykalman>=0.9.5",
+    "flatbuffers>=25.12.19",
 ]
 
 [build-system]

@@ -91,6 +91,7 @@ source = { editable = "." }
 dependencies = [
     { name = "adbc-driver-manager" },
     { name = "adbc-driver-postgresql" },
+    { name = "flatbuffers" },
     { name = "httpx" },
     { name = "polars" },
     { name = "pyarrow" },
@@ -105,6 +106,7 @@ dependencies = [
 requires-dist = [
     { name = "adbc-driver-manager", specifier = ">=1.0.0" },
     { name = "adbc-driver-postgresql", specifier = ">=1.0.0" },
+    { name = "flatbuffers", specifier = ">=25.12.19" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pyarrow", specifier = ">=15.0.0" },
@@ -113,6 +115,14 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.4.0" },
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "statsmodels", specifier = ">=0.14.0" },
+]
+
+[[package]]
+name = "flatbuffers"
+version = "25.12.19"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4", size = 26661, upload-time = "2025-12-19T23:16:13.622Z" },
 ]
 
 [[package]]

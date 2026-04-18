@@ -14,6 +14,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::engine::router::{run_router, RiskMatrix};
 use crate::network::websocket::run_market_data_stream;
+use crate::portfolio::manager::PortfolioManager;
 use crate::state::orderbook::LocalMarketState;
 use crate::state::shm_reader::SharedMemoryReader;
 
@@ -30,6 +31,9 @@ async fn main() -> anyhow::Result<()> {
 
     // In-memory concurrent state initialization
     let market_state = Arc::new(LocalMarketState::new());
+    
+    // Virtual Portfolio Manager
+    let portfolio = Arc::new(PortfolioManager::new());
     
     // Dynamic Risk Matrix via RwLock
     let dynamic_risks = Arc::new(tokio::sync::RwLock::new(Vec::<RiskMatrix>::new()));
@@ -85,8 +89,9 @@ async fn main() -> anyhow::Result<()> {
     let state_router = Arc::clone(&market_state);
     let token_router = shutdown_token.clone();
     let router_risks = Arc::clone(&dynamic_risks);
+    let router_portfolio = Arc::clone(&portfolio);
     let router_task = tokio::spawn(async move {
-        run_router(state_router, router_risks, token_router).await;
+        run_router(state_router, router_risks, router_portfolio, token_router).await;
     });
 
     // O Sistema permanece vivo rodando o background async até dispararmos o SIGINT.

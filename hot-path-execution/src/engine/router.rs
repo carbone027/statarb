@@ -3,8 +3,7 @@ use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use crate::engine::executor::execute_arbitrage_trade;
-use crate::portfolio::manager::PortfolioManager;
+use crate::engine::executor::OrderExecutor;
 use crate::state::orderbook::LocalMarketState;
 
 #[derive(Clone, Debug)]
@@ -18,7 +17,7 @@ pub struct RiskMatrix {
 pub async fn run_router(
     state: Arc<LocalMarketState>,
     risk_states: Arc<tokio::sync::RwLock<Vec<RiskMatrix>>>,
-    portfolio: Arc<PortfolioManager>,
+    executor: Arc<dyn OrderExecutor>,
     shutdown_token: CancellationToken,
 ) {
     info!("Engine Router started. Listening for runtime signal updates.");
@@ -47,7 +46,7 @@ pub async fn run_router(
 
                         if simulated_spread > risk.threshold {
                             // Regras de Capital e Sizing
-                            let available_balance = *portfolio.available_balance.read().unwrap();
+                            let available_balance = executor.get_available_balance().await;
                             let trade_money = available_balance * 0.05; // 5% do saldo livre
                             
                             let target_money = trade_money / 2.0;
@@ -65,8 +64,8 @@ pub async fn run_router(
                             }
 
                             let latency = instant_start.elapsed().as_millis();
-                            // Delegate to Executor
-                            execute_arbitrage_trade(
+                            // Delegate to Executor (Trait Abstraction)
+                            executor.execute_arbitrage_trade(
                                 &risk.target_symbol,
                                 btc.ask_price,
                                 target_qty,
@@ -74,8 +73,7 @@ pub async fn run_router(
                                 eth.bid_price,
                                 hedge_qty,
                                 latency,
-                                Arc::clone(&portfolio)
-                            );
+                            ).await;
                         }
                     }
                 }

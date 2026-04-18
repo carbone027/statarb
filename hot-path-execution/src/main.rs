@@ -3,7 +3,13 @@ mod engine;
 mod network;
 mod state;
 mod types;
+mod config;
 pub mod portfolio;
+
+use clap::Parser;
+use crate::config::settings::Config;
+use crate::engine::executor::{OrderExecutor, PaperExecutor};
+use crate::network::binance::BinanceExecutor;
 
 use std::sync::Arc;
 use tokio::signal;
@@ -18,6 +24,14 @@ use crate::portfolio::manager::PortfolioManager;
 use crate::state::orderbook::LocalMarketState;
 use crate::state::shm_reader::SharedMemoryReader;
 
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub struct Args {
+    /// Modo de simulação (dinheiro falso)
+    #[arg(long, default_value_t = false)]
+    pub paper_trading: bool,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Tracing initialization
@@ -26,6 +40,19 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)
         .expect("Failed to set default subscriber for tracing");
+
+    let args = Args::parse();
+
+    if !args.paper_trading {
+        tracing::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        tracing::warn!("!!! ALERTA: MODO DE PRODUÇÃO ATIVADO - DINHEIRO REAL !!!");
+        tracing::warn!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    } else {
+        info!("Starting StatArb Hot-Path Engine in PAPER-TRADING mode...");
+    }
+
+    // Carregar configurações da Binance
+    let config = Config::from_env().expect("Falha ao carregar BINANCE_API_KEY ou BINANCE_SECRET do .env");
 
     info!("Starting StatArb Hot-Path Engine with IPC Memory Reading...");
 
@@ -89,9 +116,16 @@ async fn main() -> anyhow::Result<()> {
     let state_router = Arc::clone(&market_state);
     let token_router = shutdown_token.clone();
     let router_risks = Arc::clone(&dynamic_risks);
-    let router_portfolio = Arc::clone(&portfolio);
+    
+    // Injeção de Dependência do Executor baseado no CLI
+    let executor: Arc<dyn OrderExecutor> = if args.paper_trading {
+        Arc::new(PaperExecutor { portfolio: Arc::clone(&portfolio) })
+    } else {
+        Arc::new(BinanceExecutor::new(config))
+    };
+
     let router_task = tokio::spawn(async move {
-        run_router(state_router, router_risks, router_portfolio, token_router).await;
+        run_router(state_router, router_risks, executor, token_router).await;
     });
 
     // O Sistema permanece vivo rodando o background async até dispararmos o SIGINT.

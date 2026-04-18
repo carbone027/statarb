@@ -3,6 +3,7 @@ mod engine;
 mod network;
 mod state;
 mod types;
+pub mod portfolio;
 
 use std::sync::Arc;
 use tokio::signal;

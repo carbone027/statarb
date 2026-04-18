@@ -181,3 +181,21 @@ Thumbs.db
 *_generated.py
 *_generated.h
 *_generated.rs
+
+# --- StatArb Project Specifics ---
+
+# cold-path-intelligence
+cold-path-intelligence/data/
+cold-path-intelligence/.venv/
+cold-path-intelligence/questdb_data/
+cold-path-intelligence/notebooks/.ipynb_checkpoints/
+cold-path-intelligence/.ruff_cache/
+cold-path-intelligence/.pytest_cache/
+cold-path-intelligence/logs/
+cold-path-intelligence/__pycache__/
+
+# hot-path-execution
+hot-path-execution/target/
+hot-path-execution/logs/
+hot-path-execution/*.log
+

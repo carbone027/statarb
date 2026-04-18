@@ -1,0 +1,16 @@
+namespace statarb.ipc;
+
+table Signal {
+  target_symbol: string;
+  hedge_symbol: string;
+  hedge_ratio: float64;
+  threshold: float64;
+}
+
+table RiskState {
+  signals: [Signal];
+  sequence_number: uint64;
+  timestamp: uint64;
+}
+
+root_type RiskState;
